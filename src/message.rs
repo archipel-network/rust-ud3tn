@@ -113,8 +113,8 @@ impl<'a> Message<'a> {
                 let dest_eid = String::from_utf8(bytes[offset..offset+eid_length].into())?;
                 offset += eid_length;
 
-                let payload_length = u16::from_be_bytes(bytes[offset..offset+2].try_into()?) as usize;
-                offset += 2;
+                let payload_length = u64::from_be_bytes(bytes[offset..offset+8].try_into()?) as usize;
+                offset += 8;
 
                 if bytes.len() < offset+payload_length {
                     return Err(ParseError::UnexpectedEnd)
@@ -132,8 +132,8 @@ impl<'a> Message<'a> {
                 let source_eid = String::from_utf8(bytes[offset..offset+eid_length].into())?;
                 offset += eid_length;
 
-                let payload_length = u16::from_be_bytes(bytes[offset..offset+2].try_into()?) as usize;
-                offset += 2;
+                let payload_length = u64::from_be_bytes(bytes[offset..offset+8].try_into()?) as usize;
+                offset += 8;
 
                 if bytes.len() < offset+payload_length {
                     return Err(ParseError::UnexpectedEnd)
@@ -179,7 +179,7 @@ fn append_string(target: &mut Vec<u8>, str: &String){
 }
 
 fn append_bytes(target: &mut Vec<u8>, bytes: &[u8]){
-    target.append(&mut Vec::from((bytes.len() as u16).to_be_bytes()));
+    target.append(&mut Vec::from((bytes.len() as u64).to_be_bytes()));
     target.append(&mut bytes.iter().cloned().collect());
 }
 
