@@ -26,8 +26,19 @@ impl<S: Read + Write> AAPConnection<S> {
         }
     }
 
-    fn send_message(&mut self, message: Message) -> Result<(), Error>{
-        Self::send_message_to(&mut self.stream, message)
+    pub fn send_bundle(&mut self, destination_eid: String, payload:&[u8]) -> Result<u64, Error>{
+        Self::send_message_unchecked_to(self.stream.get_mut(), Message::SENDBUNDLE(destination_eid, payload.into()))?;
+        match Self::recv_from(&mut self.stream)? {
+            Message::SENDCONFIRM(id) => Ok(id),
+            _ => Err(Error::UnexpectedMessage)
+        }
+    }
+
+    pub fn recv_bundle(&mut self) -> Result<(String, Vec<u8>), Error>{
+        match Self::recv_from(&mut self.stream)? {
+            Message::RECVBUNDLE(source, payload) => Ok((source, payload.into())),
+            _ => Err(Error::UnexpectedMessage)
+        }
     }
 
     fn send_message_to(stream:&mut BufReader<S>, message: Message) -> Result<(), Error> {
@@ -42,10 +53,6 @@ impl<S: Read + Write> AAPConnection<S> {
     fn send_message_unchecked_to<T: Write>(stream:&mut T, message: Message) -> Result<(), Error> {
         stream.write(&message.to_bytes())?;
         Ok(())
-    }
-
-    fn recv(&mut self) -> Result<Message, Error> {
-        Self::recv_from(&mut self.stream)
     }
 
     fn recv_from<'a>(stream: &mut BufReader<S>) -> Result<Message<'a>, Error> {
