@@ -1,6 +1,6 @@
 use std::{io::{Read, Write, BufRead, BufReader}};
 
-use message::Message;
+use message::{Message, ParseError};
 use thiserror::Error;
 
 mod message;
@@ -49,17 +49,28 @@ impl<S: Read + Write> AAPConnection<S> {
     }
 
     fn recv_from<'a>(stream: &mut BufReader<S>) -> Result<Message<'a>, Error> {
-        let mut message_buffer:Vec<u8> = Vec::new();
-
         loop {
-            let mut buf = [0;255];
-            let bytes_red = stream.read(&mut buf)?;
-            message_buffer.append(&mut buf[0..bytes_red].into());
+            stream.fill_buf()?;
+            let buffer = stream.buffer();
+            let bytes_in_buffer = buffer.len();
 
-            if message_buffer.len() > 1 {
-                match Message::parse(&message_buffer) {
-                    Ok(m) => return Ok(m),
-                    Err(_) => {},
+            if bytes_in_buffer > 0 {
+                match Message::parse_buffer(buffer) {
+                    Ok((m, bytes_red)) => {
+                        stream.consume(bytes_red);
+                        return Ok(m);
+                    },
+                    Err(e) => match e {
+                        message::ParseError::VersionNotSupported => {
+                            stream.consume(bytes_in_buffer);
+                            return Err(Error::MalformedMessage(e))
+                        },
+                        message::ParseError::UnknownType(_) => {
+                            stream.consume(bytes_in_buffer);
+                            return Err(Error::MalformedMessage(e))
+                        },
+                        _ => {}
+                    },
                 }
             }
         }
@@ -76,5 +87,8 @@ pub enum Error {
     UnexpectedMessage,
 
     #[error("Node responded with NACK")]
-    FailedOperation
+    FailedOperation,
+
+    #[error("Malformed message")]
+    MalformedMessage(#[from] ParseError)
 }

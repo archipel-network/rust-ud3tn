@@ -80,11 +80,11 @@ impl<'a> Message<'a> {
 
         return result;
     }
-    pub fn parse(bytes: &Vec<u8>) -> Result<Self, ParseError> {
+    pub fn parse(bytes: &[u8]) -> Result<Self, ParseError> {
         Self::parse_buffer(bytes).map(|it| it.0)
     }
 
-    pub fn parse_buffer(bytes: &Vec<u8>) -> Result<(Self, usize), ParseError> {
+    pub fn parse_buffer(bytes: &[u8]) -> Result<(Self, usize), ParseError> {
         let version = (bytes[0] & 0b11110000) >> 4;
 
         if version != 0x1 {
@@ -101,9 +101,10 @@ impl<'a> Message<'a> {
                 let eid_length = u16::from_be_bytes(bytes[offset..offset+2].try_into()?) as usize;
                 offset += 2;
 
-                Message::REGISTER(
-                    String::from_utf8(bytes[3..3+eid_length].into())?
-                )
+                let eid = String::from_utf8(bytes[offset..offset+eid_length].into())?;
+                offset += eid_length;
+
+                Message::REGISTER(eid)
             }
             0x3 => {
                 let eid_length = u16::from_be_bytes(bytes[offset..offset+2].try_into()?) as usize;
@@ -159,7 +160,10 @@ impl<'a> Message<'a> {
                 let eid_length:usize = u16::from_be_bytes(bytes[offset..offset+2].try_into()?) as usize;
                 offset += 2;
 
-                Message::WELCOME(String::from_utf8(bytes[3..3+eid_length].into())?)
+                let eid = String::from_utf8(bytes[offset..offset+eid_length].into())?;
+                offset += eid_length;
+
+                Message::WELCOME(eid)
             }
             0x8 => Self::PING,
             _ => return Err(ParseError::UnknownType(message_type))
