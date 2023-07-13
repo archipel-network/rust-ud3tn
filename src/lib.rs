@@ -6,13 +6,13 @@ use thiserror::Error;
 mod message;
 
 #[derive(Debug)]
-pub struct AAPConnection<S: Read + Write> {
+pub struct Agent<S: Read + Write> {
     pub stream: BufReader<S>,
     pub agent_id: String,
     pub node_eid: String
 }
 
-impl<S: Read + Write> AAPConnection<S> {
+impl<S: Read + Write> Agent<S> {
 
     pub fn connect(stream: S, agent_id: String) -> Result<Self, Error> {
         let mut stream = BufReader::new(stream);

@@ -1,9 +1,9 @@
 use std::os::unix::net::UnixStream;
 
-use ud3tn::AAPConnection;
+use ud3tn::Agent;
 
 fn main(){
-    let connection = AAPConnection::connect(
+    let connection = Agent::connect(
         UnixStream::connect("/home/epickiwi/Documents/Dev/archipel-core/ud3tn.socket").unwrap(),
         "my-agent".into()
     ).unwrap();
