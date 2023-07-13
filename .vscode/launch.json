@@ -40,6 +40,24 @@
             },
             "args": [],
             "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'chat'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=chat",
+                    "--package=ud3tn"
+                ],
+                "filter": {
+                    "name": "chat",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
         }
     ]
 }

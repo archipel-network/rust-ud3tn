@@ -7,3 +7,7 @@ edition = "2021"
 
 [dependencies]
 thiserror = "1.0.43"
+
+[dev-dependencies]
+inquire = "0.6.2"
+url = "2.4.0"
