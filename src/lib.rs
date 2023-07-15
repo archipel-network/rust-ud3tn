@@ -31,8 +31,13 @@ pub mod message;
 /// ```
 #[derive(Debug)]
 pub struct Agent<S: Read + Write> {
+    /// Stream used for communication with ud3tn
     pub stream: BufReader<S>,
+
+    /// Current registered Agent ID
     pub agent_id: String,
+
+    /// EID of currently connected node
     pub node_eid: String
 }
 
