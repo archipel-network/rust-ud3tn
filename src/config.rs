@@ -191,6 +191,18 @@ pub struct Contact {
     pub data_rate: ContactDataRate
 }
 
+impl Contact {
+    /// Create a new contact starting from a point in time and lasting a defined time
+    pub fn from_during(from: SystemTime, duration: Duration, rate: ContactDataRate) -> Self {
+        Self { start: from, end: from + duration, data_rate: rate }
+    }
+
+    /// Create a new contact starting from now lasting a defined time
+    pub fn from_now_during(duration: Duration, rate: ContactDataRate) -> Self {
+        Self { start: SystemTime::now(), end: SystemTime::now() + duration, data_rate: rate }
+    }
+}
+
 /// Contact expected transmission rate
 pub enum ContactDataRate {
     /// Unlimited transmission rate

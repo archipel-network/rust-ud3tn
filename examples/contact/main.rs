@@ -1,4 +1,4 @@
-use std::{os::unix::net::UnixStream, time::{SystemTime, Duration}};
+use std::{os::unix::net::UnixStream, time::{Duration}};
 
 use ud3tn_aap::{Agent, config::{ConfigBundle, AddContact, Contact, ContactDataRate}};
 
@@ -14,11 +14,7 @@ fn main(){
         cla_address: "file:/home/epickiwi/Documents/Dev/archipel-core/data".into(),
         reaches_eid: Vec::new(),
         contacts: vec![
-            Contact { 
-                start: SystemTime::now(), 
-                end: SystemTime::now() + Duration::from_secs(60), 
-                data_rate: ContactDataRate::Unlimited
-            }
+            Contact::from_now_during(Duration::from_secs(60), ContactDataRate::Unlimited)
         ],
     });
 
