@@ -1,4 +1,5 @@
 #![doc = include_str!("../README.md")]
+#![warn(missing_docs)]
 
 use std::io::{Read, Write, BufRead, BufReader};
 
@@ -6,6 +7,7 @@ use message::{Message, ParseError};
 use thiserror::Error;
 
 pub mod message;
+pub mod config;
 
 /// Agent creating an AAP on a ud3tn node through a stream
 /// 
