@@ -3,6 +3,7 @@
 
 use std::io::{Read, Write, BufRead, BufReader};
 
+use config::ConfigBundle;
 use message::{Message, ParseError};
 use thiserror::Error;
 
@@ -15,7 +16,10 @@ pub mod config;
 /// 
 /// 
 /// Using a socket file with [`std::os::unix::net::UnixStream`] to expose en endpoint on `dtn://[your-node-eid]/my-agent`
-/// ```rust,ignore
+/// ```rust,no_run
+/// use std::os::unix::net::UnixStream;
+/// use ud3tn_aap::Agent;
+/// 
 /// let connection = Agent::connect(
 ///     UnixStream::connect("archipel-core/ud3tn.socket").unwrap(),
 ///     "my-agent".into()
@@ -24,7 +28,10 @@ pub mod config;
 /// ```
 /// 
 /// Using a [`std::net::TcpStream`] to expose en endpoint on `dtn://[your-node-eid]/my-agent`
-/// ```rust,ignore
+/// ```rust,no_run
+/// use std::net::TcpStream;
+/// use ud3tn_aap::Agent;
+/// 
 /// let connection = Agent::connect(
 ///     TcpStream::connect("127.0.0.1:34254").unwrap(),
 ///     "my-agent".into()
@@ -126,6 +133,14 @@ impl<S: Read + Write> Agent<S> {
                     },
                 }
             }
+        }
+    }
+
+    /// Send a configuration bundle to ud3tn node
+    pub fn send_config(&mut self, config:ConfigBundle) -> Result<(), Error> {
+        match self.send_bundle(format!("{0}config", self.node_eid), &config.to_bytes()) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(e),
         }
     }
 
