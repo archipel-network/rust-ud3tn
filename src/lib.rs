@@ -1,4 +1,4 @@
-use std::{io::{Read, Write, BufRead, BufReader}};
+use std::io::{Read, Write, BufRead, BufReader};
 
 use message::{Message, ParseError};
 use thiserror::Error;
