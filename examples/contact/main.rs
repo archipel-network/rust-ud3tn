@@ -4,22 +4,25 @@ use ud3tn_aap::{Agent, config::{ConfigBundle, AddContact, Contact, ContactDataRa
 
 fn main(){
     let mut connection = Agent::connect(
-        UnixStream::connect("/home/epickiwi/Documents/DTN-research/archipel-core/ud3tn.socket").unwrap(),
-        "my-agent".into()
+        UnixStream::connect("/home/epickiwi/Documents/Dev/archipel-core/ud3tn.socket").unwrap(),
+        "conf-agent".into()
     ).unwrap();
     
-    connection.send_config(ConfigBundle::AddContact(AddContact {
+    let config = ConfigBundle::AddContact(AddContact {
         eid: "dtn://example.org/".into(),
         reliability: None,
-        cla_address: "tcpspp:".into(),
+        cla_address: "file:/home/epickiwi/Documents/Dev/archipel-core/data".into(),
         reaches_eid: Vec::new(),
         contacts: vec![
             Contact { 
                 start: SystemTime::now(), 
                 end: SystemTime::now() + Duration::from_secs(60), 
-                data_rate: ContactDataRate::Unlimited, 
-                reaches_eid: Vec::new()
+                data_rate: ContactDataRate::Unlimited
             }
         ],
-    })).unwrap()
+    });
+
+    println!("{}", config.to_string());
+
+    connection.send_config(config).unwrap()
 }
