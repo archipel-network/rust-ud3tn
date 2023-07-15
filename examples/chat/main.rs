@@ -1,7 +1,7 @@
 use std::{os::unix::net::UnixStream, thread, io::{stdin, stdout, Write}};
 
-use inquire::{Text};
-use ud3tn::{Agent};
+use inquire::Text;
+use ud3tn_aap::Agent;
 
 fn main(){
 

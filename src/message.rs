@@ -1,6 +1,9 @@
+//! Message parsing and serializing from ud3tn
+
 use std::{borrow::Cow, array::TryFromSliceError, string::FromUtf8Error};
 use thiserror::Error;
 
+/// An ud3tn message received or sent to node
 #[derive(PartialEq, Debug)]
 #[non_exhaustive]
 pub enum Message<'a> {
@@ -44,6 +47,7 @@ pub enum Message<'a> {
 
 impl<'a> Message<'a> {
     
+    /// Serialize this message to bytes ready to be sended to ud3tn
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut result = vec![0x1 << 4];
 
@@ -85,10 +89,15 @@ impl<'a> Message<'a> {
 
         return result;
     }
+
+    /// Parse an array of bytes to a message
     pub fn parse(bytes: &[u8]) -> Result<Self, ParseError> {
         Self::parse_buffer(bytes).map(|it| it.0)
     }
 
+    /// Parse an array of bytes to a message and return consumed bytes
+    /// 
+    /// Returns a tuple of (Parsed message, number of bytes consumed in buffer)
     pub fn parse_buffer(bytes: &[u8]) -> Result<(Self, usize), ParseError> {
         let version = (bytes[0] & 0b11110000) >> 4;
 
@@ -180,11 +189,13 @@ impl<'a> Message<'a> {
     }
 }
 
+/// Append a string to a buffer including its length before it
 fn append_string(target: &mut Vec<u8>, str: &String){
     target.append(&mut Vec::from((str.len() as u16).to_be_bytes()));
     target.append(&mut Vec::from(str.as_bytes()));
 }
 
+/// Append a byte array to a buffer including its length before it
 fn append_bytes(target: &mut Vec<u8>, bytes: &[u8]){
     target.append(&mut Vec::from((bytes.len() as u64).to_be_bytes()));
     target.append(&mut bytes.iter().cloned().collect());
@@ -204,15 +215,22 @@ impl<'a> TryFrom<Vec<u8>> for Message<'a> {
     }
 }
 
-
+/// Parsing error of message
 #[derive(Debug, Error)]
 pub enum ParseError {
+    /// Parsed message protocol version isn't supported (or provided message is not a valid ud3tn message)
     #[error("Version byte not supported")]
     VersionNotSupported,
+
+    /// Message type isn't supported (or provided message is not a valid ud3tn message)
     #[error("Unknown message type {0}")]
     UnknownType(u8),
+
+    /// No more bytes to read but message wasn't finished
     #[error("Unexpected end of message")]
     UnexpectedEnd,
+
+    /// A parsed string in message isn't a valid utf8 string
     #[error("Invalid utf8 string {0}")]
     Utf8Error(#[from] FromUtf8Error),
 }
