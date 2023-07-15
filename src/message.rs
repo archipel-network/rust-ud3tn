@@ -8,41 +8,41 @@ use thiserror::Error;
 #[non_exhaustive]
 pub enum Message<'a> {
     /// Cositive acknowledgment
-    ACK,
+    Ack,
 
     /// Negative acknowledgment
-    NACK,
+    Nack,
 
     /// EID registration request
     /// (Agent identifier)
-    REGISTER(String),
+    Register(String),
 
     /// Connection establishment notice
     /// (Node EID)
-    WELCOME(String),
+    Welcome(String),
 
     /// Bundle transmission request
     /// (Destination EID, Payload data)
-    SENDBUNDLE(String, Cow<'a, [u8]>),
+    SendBundle(String, Cow<'a, [u8]>),
 
     /// Bundle reception message
     /// (Destination EID, Payload data)
-    RECVBUNDLE(String, Cow<'a, [u8]>),
+    RecvBundle(String, Cow<'a, [u8]>),
 
     /// Bundle transmission confirmation
-    SENDCONFIRM(u64),
+    SendConfirm(u64),
 
     /// Bundle cancellation request
-    CANCELBUNDLE(u64),
+    CancelBundle(u64),
 
     /// Connection liveliness check
-    PING,
+    Ping,
 
     /// Unimplemented - BIBE Bundle transmission request
-    SENDBIBE(String, Cow<'a, [u8]>),
+    SendBIBE(String, Cow<'a, [u8]>),
 
     /// Unimplmented - BIBE Bundle reception message
-    RECVBIBE(String, Cow<'a, [u8]>),
+    RecvBIBE(String, Cow<'a, [u8]>),
 }
 
 impl<'a> Message<'a> {
@@ -52,37 +52,37 @@ impl<'a> Message<'a> {
         let mut result = vec![0x1 << 4];
 
         result[0] |= match self {
-            Message::ACK => 0x0,
-            Message::NACK => 0x1,
-            Message::REGISTER(_) => 0x2,
-            Message::SENDBUNDLE(_, _) => 0x3,
-            Message::RECVBUNDLE(_, _) => 0x4,
-            Message::SENDCONFIRM(_) => 0x5,
-            Message::CANCELBUNDLE(_) => 0x6,
-            Message::WELCOME(_) => 0x7,
-            Message::PING => 0x8,
-            Message::SENDBIBE(_, _) => todo!("BIBE not implemented"),
-            Message::RECVBIBE(_, _) => todo!("BIBE not implemented"),
+            Message::Ack => 0x0,
+            Message::Nack => 0x1,
+            Message::Register(_) => 0x2,
+            Message::SendBundle(_, _) => 0x3,
+            Message::RecvBundle(_, _) => 0x4,
+            Message::SendConfirm(_) => 0x5,
+            Message::CancelBundle(_) => 0x6,
+            Message::Welcome(_) => 0x7,
+            Message::Ping => 0x8,
+            Message::SendBIBE(_, _) => todo!("BIBE not implemented"),
+            Message::RecvBIBE(_, _) => todo!("BIBE not implemented"),
         };
 
         match self {
-            Message::REGISTER(agent_id) => {
+            Message::Register(agent_id) => {
                 append_string(&mut result, agent_id);
             },
-            Message::WELCOME(node_eid) => {
+            Message::Welcome(node_eid) => {
                 append_string(&mut result, node_eid);
             },
-            Message::SENDBUNDLE(destination_eid, payload) => {
+            Message::SendBundle(destination_eid, payload) => {
                 append_string(&mut result, destination_eid);
                 append_bytes(&mut result, &payload)
             },
-            Message::RECVBUNDLE(source_eid, payload) => {
+            Message::RecvBundle(source_eid, payload) => {
                 append_string(&mut result, source_eid);
                 append_bytes(&mut result, &payload)
             },
-            Message::SENDCONFIRM(bundle_id) => 
+            Message::SendConfirm(bundle_id) => 
                 result.append(&mut Vec::from((bundle_id).to_be_bytes())),
-            Message::CANCELBUNDLE(bundle_id) =>  
+            Message::CancelBundle(bundle_id) =>  
                 result.append(&mut Vec::from((bundle_id).to_be_bytes())),
             _ => {}
         };
@@ -109,8 +109,8 @@ impl<'a> Message<'a> {
         let mut offset = 1;
 
         let message = match message_type {
-            0x0 => Self::ACK,
-            0x1 => Self::NACK,
+            0x0 => Self::Ack,
+            0x1 => Self::Nack,
             0x2 => {
                 let eid_length = u16::from_be_bytes(bytes[offset..offset+2].try_into()?) as usize;
                 offset += 2;
@@ -118,7 +118,7 @@ impl<'a> Message<'a> {
                 let eid = String::from_utf8(bytes[offset..offset+eid_length].into())?;
                 offset += eid_length;
 
-                Message::REGISTER(eid)
+                Message::Register(eid)
             }
             0x3 => {
                 let eid_length = u16::from_be_bytes(bytes[offset..offset+2].try_into()?) as usize;
@@ -137,7 +137,7 @@ impl<'a> Message<'a> {
                 let payload = Cow::from(Vec::from(&bytes[offset..offset+payload_length]));
                 offset += payload_length;
 
-                Message::SENDBUNDLE(dest_eid, payload)
+                Message::SendBundle(dest_eid, payload)
             }
             0x4 => {
                 let eid_length = u16::from_be_bytes(bytes[offset..offset+2].try_into()?) as usize;
@@ -156,19 +156,19 @@ impl<'a> Message<'a> {
                 let payload = Cow::from(Vec::from(&bytes[offset..offset+payload_length]));
                 offset += payload_length;
 
-                Message::RECVBUNDLE(source_eid, payload)
+                Message::RecvBundle(source_eid, payload)
             }
             0x5 => {
                 let bundle_id:u64 = u64::from_be_bytes(bytes[offset..offset+8].try_into()?);
                 offset += 8;
 
-                Message::SENDCONFIRM(bundle_id)
+                Message::SendConfirm(bundle_id)
             }
             0x6 => {
                 let bundle_id:u64 = u64::from_be_bytes(bytes[offset..offset+8].try_into()?);
                 offset += 8;
 
-                Message::CANCELBUNDLE(bundle_id)
+                Message::CancelBundle(bundle_id)
             }
             0x7 => {
                 let eid_length:usize = u16::from_be_bytes(bytes[offset..offset+2].try_into()?) as usize;
@@ -177,9 +177,9 @@ impl<'a> Message<'a> {
                 let eid = String::from_utf8(bytes[offset..offset+eid_length].into())?;
                 offset += eid_length;
 
-                Message::WELCOME(eid)
+                Message::Welcome(eid)
             }
-            0x8 => Self::PING,
+            0x8 => Self::Ping,
             0x9 => return Err(ParseError::UnknownType(0x9)), //todo BIBE not implemented
             0xA => return Err(ParseError::UnknownType(0xA)), //todo BIBE not implemented
             _ => return Err(ParseError::UnknownType(message_type))
@@ -248,28 +248,28 @@ mod tests {
 
     #[test]
     fn test_ack_to_bytes(){
-        assert_eq!(Message::ACK.to_bytes(), vec![0b00010000])
+        assert_eq!(Message::Ack.to_bytes(), vec![0b00010000])
     }
 
     #[test]
     fn test_ack_parse(){
-        assert_eq!(Message::parse(&vec![0b00010000]).unwrap(), Message::ACK)
+        assert_eq!(Message::parse(&vec![0b00010000]).unwrap(), Message::Ack)
     }
 
     #[test]
     fn test_nack_to_bytes(){
-        assert_eq!(Message::NACK.to_bytes(), vec![0b00010001])
+        assert_eq!(Message::Nack.to_bytes(), vec![0b00010001])
     }
 
     #[test]
     fn test_nack_parse(){
-        assert_eq!(Message::parse(&vec![0b00010001]).unwrap(), Message::NACK)
+        assert_eq!(Message::parse(&vec![0b00010001]).unwrap(), Message::Nack)
     }
 
     #[test]
     fn test_register_to_bytes(){
         assert_eq!(
-            Message::REGISTER("rust_test".into()).to_bytes(),
+            Message::Register("rust_test".into()).to_bytes(),
             vec![0b00010010, // Declaration
                 0, 9, // Length
                 0b01110010,0b01110101,0b01110011,0b01110100,0b01011111,0b01110100,0b01100101,0b01110011,0b01110100 // EID
@@ -283,7 +283,7 @@ mod tests {
                 0, 9, // Length
                 0b01110010,0b01110101,0b01110011,0b01110100,0b01011111,0b01110100,0b01100101,0b01110011,0b01110100 // EID
                 ]).unwrap(),
-            Message::REGISTER("rust_test".into()))
+            Message::Register("rust_test".into()))
     }
 
     #[test]
@@ -291,7 +291,7 @@ mod tests {
         let payload:Vec<u8> = "Hello world !".into();
 
         assert_eq!(
-            Message::SENDBUNDLE(
+            Message::SendBundle(
                 "dtn://rust-lang.org/rust_test".into(),
                 Cow::from(&payload)
             ).to_bytes(), 
@@ -314,7 +314,7 @@ mod tests {
                 0, 0, 0, 0, 0, 0, 0, 13, // Payload length
                 0b01001000,0b01100101,0b01101100,0b01101100,0b01101111,0b00100000,0b01110111,0b01101111,0b01110010,0b01101100,0b01100100,0b00100000,0b00100001 // Payload
                 ]).unwrap(),
-            Message::SENDBUNDLE(
+            Message::SendBundle(
                 "dtn://rust-lang.org/rust_test".into(),
                 Cow::from(&payload)
             ))
@@ -325,7 +325,7 @@ mod tests {
         let payload:Vec<u8> = "Hello world !".into();
 
         assert_eq!(
-            Message::RECVBUNDLE(
+            Message::RecvBundle(
                 "dtn://rust-lang.org/rust_test".into(),
                 (&payload).into()
             ).to_bytes(), 
@@ -348,7 +348,7 @@ mod tests {
                 0, 0, 0, 0, 0, 0, 0, 13, // Payload length
                 0b01001000,0b01100101,0b01101100,0b01101100,0b01101111,0b00100000,0b01110111,0b01101111,0b01110010,0b01101100,0b01100100,0b00100000,0b00100001 // Payload
                 ]).unwrap(),
-            Message::RECVBUNDLE(
+            Message::RecvBundle(
                 "dtn://rust-lang.org/rust_test".into(),
                 (&payload).into()
             ))
@@ -357,7 +357,7 @@ mod tests {
     #[test]
     fn test_sendconfirm_to_bytes(){
         assert_eq!(
-            Message::SENDCONFIRM(735469895).to_bytes(),
+            Message::SendConfirm(735469895).to_bytes(),
             vec![0b00010101, // Declaration
             0, 0, 0, 0, 0b00101011, 0b11010110, 0b01100001, 0b01000111 //Bundle ID
             ])
@@ -367,13 +367,13 @@ mod tests {
     fn test_sendconfirm_parse(){
         assert_eq!(
             Message::parse(&vec![0b00010101, 0, 0, 0, 0, 0b00101011, 0b11010110, 0b01100001, 0b01000111]).unwrap(),
-            Message::SENDCONFIRM(735469895))
+            Message::SendConfirm(735469895))
     }
 
     #[test]
     fn test_bundle_cancelled_to_bytes(){
         assert_eq!(
-            Message::CANCELBUNDLE(1720893).to_bytes(),
+            Message::CancelBundle(1720893).to_bytes(),
             vec![0b00010110, // Declaration
             0, 0, 0, 0, 0, 0b00011010, 0b01000010, 0b00111101, //Bundle ID
             ])
@@ -383,13 +383,13 @@ mod tests {
     fn test_bundle_cancelled_parse(){
         assert_eq!(
             Message::parse(&vec![0b00010110, 0, 0, 0, 0, 0, 0b00011010, 0b01000010, 0b00111101]).unwrap(),
-            Message::CANCELBUNDLE(1720893))
+            Message::CancelBundle(1720893))
     }
 
     #[test]
     fn test_welcome_to_bytes(){
         assert_eq!(
-            Message::WELCOME("dtn://rust-lang.org/".into()).to_bytes(), 
+            Message::Welcome("dtn://rust-lang.org/".into()).to_bytes(), 
             vec![0b00010111, // Declaration
                 0, 20, // Length
                 0b01100100,0b01110100,0b01101110,0b00111010,0b00101111,0b00101111,0b01110010,0b01110101,0b01110011,0b01110100,0b00101101,0b01101100,0b01100001,0b01101110,0b01100111,0b00101110,0b01101111,0b01110010,0b01100111,0b00101111, // Node EID
@@ -403,17 +403,17 @@ mod tests {
                 0, 20, // Length
                 0b01100100,0b01110100,0b01101110,0b00111010,0b00101111,0b00101111,0b01110010,0b01110101,0b01110011,0b01110100,0b00101101,0b01101100,0b01100001,0b01101110,0b01100111,0b00101110,0b01101111,0b01110010,0b01100111,0b00101111, // Node EID
                 ]).unwrap(),
-            Message::WELCOME("dtn://rust-lang.org/".into()))
+            Message::Welcome("dtn://rust-lang.org/".into()))
     }
 
     #[test]
     fn test_ping_to_bytes(){
-        assert_eq!(Message::PING.to_bytes(), vec![0b00011000])
+        assert_eq!(Message::Ping.to_bytes(), vec![0b00011000])
     }
 
     #[test]
     fn test_ping_parse(){
-        assert_eq!(Message::parse(&vec![0b00011000]).unwrap(), Message::PING)
+        assert_eq!(Message::parse(&vec![0b00011000]).unwrap(), Message::Ping)
     }
 
 }

@@ -46,8 +46,8 @@ impl<S: Read + Write> Agent<S> {
         let mut stream = BufReader::new(stream);
 
         match Self::recv_from(&mut stream)? {
-            Message::WELCOME(node_eid) => {
-                Self::send_message_to(&mut stream, Message::REGISTER(agent_id.clone()))?;
+            Message::Welcome(node_eid) => {
+                Self::send_message_to(&mut stream, Message::Register(agent_id.clone()))?;
                 Ok(Self { stream, agent_id, node_eid })
             },
             _ => Err(Error::UnexpectedMessage)
@@ -60,9 +60,9 @@ impl<S: Read + Write> Agent<S> {
     /// 
     /// Returns bundle identifier as [`u64`]
     pub fn send_bundle(&mut self, destination_eid: String, payload:&[u8]) -> Result<u64, Error>{
-        Self::send_message_unchecked_to(self.stream.get_mut(), Message::SENDBUNDLE(destination_eid, payload.into()))?;
+        Self::send_message_unchecked_to(self.stream.get_mut(), Message::SendBundle(destination_eid, payload.into()))?;
         match Self::recv_from(&mut self.stream)? {
-            Message::SENDCONFIRM(id) => Ok(id),
+            Message::SendConfirm(id) => Ok(id),
             _ => Err(Error::UnexpectedMessage)
         }
     }
@@ -72,7 +72,7 @@ impl<S: Read + Write> Agent<S> {
     /// If something other than a bundle is received [`Err(Error::UnexpectedMessage)`] is returned
     pub fn recv_bundle(&mut self) -> Result<(String, Vec<u8>), Error>{
         match Self::recv_from(&mut self.stream)? {
-            Message::RECVBUNDLE(source, payload) => Ok((source, payload.into())),
+            Message::RecvBundle(source, payload) => Ok((source, payload.into())),
             _ => Err(Error::UnexpectedMessage)
         }
     }
@@ -81,8 +81,8 @@ impl<S: Read + Write> Agent<S> {
     fn send_message_to(stream:&mut BufReader<S>, message: Message) -> Result<(), Error> {
         Self::send_message_unchecked_to(stream.get_mut(), message)?;
         match Self::recv_from(stream)? {
-            Message::ACK => Ok(()),
-            Message::NACK => Err(Error::FailedOperation),
+            Message::Ack => Ok(()),
+            Message::Nack => Err(Error::FailedOperation),
             _ => Err(Error::UnexpectedMessage)
         }
     }
@@ -133,11 +133,11 @@ pub enum Error {
 
     /// Message received wasn't expected
     /// 
-    /// Waiting for [`Message::ACK`] message but something else came
+    /// Waiting for [`Message::Ack`] message but something else came
     #[error("Unexpected message received")]
     UnexpectedMessage,
 
-    /// Asked operation failed with a [`Message::NACK`] from ud3tn node
+    /// Asked operation failed with a [`Message::Nack`] from ud3tn node
     #[error("Node responded with NACK")]
     FailedOperation,
 
