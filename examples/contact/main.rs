@@ -1,4 +1,4 @@
-use std::{os::unix::net::UnixStream, time::{Duration}};
+use std::{os::unix::net::UnixStream, time::Duration};
 
 use ud3tn_aap::{Agent, config::{ConfigBundle, AddContact, Contact, ContactDataRate}};
 
