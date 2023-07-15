@@ -35,8 +35,11 @@ pub enum Message<'a> {
     /// Connection liveliness check
     PING,
 
-    //TODO SENDBIBE
-    //TODO RECVBIBE
+    /// Unimplemented - BIBE Bundle transmission request
+    SENDBIBE(String, Cow<'a, [u8]>),
+
+    /// Unimplmented - BIBE Bundle reception message
+    RECVBIBE(String, Cow<'a, [u8]>),
 }
 
 impl<'a> Message<'a> {
@@ -54,6 +57,8 @@ impl<'a> Message<'a> {
             Message::CANCELBUNDLE(_) => 0x6,
             Message::WELCOME(_) => 0x7,
             Message::PING => 0x8,
+            Message::SENDBIBE(_, _) => todo!("BIBE not implemented"),
+            Message::RECVBIBE(_, _) => todo!("BIBE not implemented"),
         };
 
         match self {
@@ -166,6 +171,8 @@ impl<'a> Message<'a> {
                 Message::WELCOME(eid)
             }
             0x8 => Self::PING,
+            0x9 => return Err(ParseError::UnknownType(0x9)), //todo BIBE not implemented
+            0xA => return Err(ParseError::UnknownType(0xA)), //todo BIBE not implemented
             _ => return Err(ParseError::UnknownType(message_type))
         };
 
