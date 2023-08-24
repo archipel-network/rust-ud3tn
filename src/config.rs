@@ -6,9 +6,45 @@ use std::time::SystemTime;
 #[derive(Debug, Clone)]
 pub enum ConfigBundle {
     /// Add a new available contact
-    AddContact(AddContact),
+    AddContact {
+        /// EID of the other node in contact
+        eid: String,
+
+        /// An integer number between 100 and 1000 and represent the expected likelihood that a future contact with the given node will be observed, divided by 10000
+        reliability: Option<i32>,
+
+        /// CLA address used in this contact
+        /// Uses the same string representation as ud3tn and consists of the convergence layer adapter and the node address
+        /// e.g., `(tcpclv3:127.0.0.1:1234)`
+        cla_address: String,
+
+        /// Reachable EID through this contact
+        reaches_eid: Vec<String>,
+
+        /// Future contact of this node
+        contacts: Vec<Contact>,
+    },
+
     /// Replace an existing contact
-    ReplaceContact(ReplaceContact),
+    ReplaceContact {
+        /// EID of the other node in contact
+        eid: String,
+
+        /// An integer number between 100 and 1000 and represent the expected likelihood that a future contact with the given node will be observed, divided by 10000
+        reliability: Option<i32>,
+
+        /// CLA address used in this contact
+        /// Uses the same string representation as ud3tn and consists of the convergence layer adapter and the node address
+        /// e.g., `(tcpclv3:127.0.0.1:1234)`
+        cla_address: Option<String>,
+
+        /// Reachable EID through this contact
+        reaches_eid: Vec<String>,
+
+        /// Future contact of this node
+        contacts: Vec<Contact>,
+    },
+
     /// Delete an existing contact (Contact EID)
     DeleteContact(String),
 }
@@ -17,34 +53,36 @@ impl ConfigBundle {
     /// Serialize this config bundle as string
     pub fn to_string(&self) -> String {
         let result: String = match self {
-            ConfigBundle::AddContact(conf) => {
+            ConfigBundle::AddContact {
+                eid,
+                reliability,
+                cla_address,
+                reaches_eid,
+                contacts,
+            } => {
                 // Command
-                let mut result = format!("1({0})", conf.eid);
+                let mut result = format!("1({0})", eid);
 
                 // Reliability
-                result = match conf.reliability {
+                result = match reliability {
                     Some(r) => result + &format!(",{}", r),
                     None => result,
                 };
 
                 // CLA
-                result = result + &format!(":({})", conf.cla_address);
+                result = result + &format!(":({})", cla_address);
 
-                result = if conf.reaches_eid.len() > 0 {
-                    let reaches: Vec<String> = conf
-                        .reaches_eid
-                        .iter()
-                        .map(|it| format!("({})", it))
-                        .collect();
+                result = if reaches_eid.len() > 0 {
+                    let reaches: Vec<String> =
+                        reaches_eid.iter().map(|it| format!("({})", it)).collect();
 
                     result + ":" + &format!("[{0}]", reaches.join(","))
                 } else {
                     result + ":"
                 };
 
-                result = if conf.contacts.len() > 0 {
-                    let contacts: Vec<String> = conf
-                        .contacts
+                result = if contacts.len() > 0 {
+                    let contacts: Vec<String> = contacts
                         .iter()
                         .map(|it| {
                             let reaches: Vec<String> = it
@@ -80,37 +118,39 @@ impl ConfigBundle {
                 // EOL
                 result + ";"
             }
-            ConfigBundle::ReplaceContact(conf) => {
+            ConfigBundle::ReplaceContact {
+                eid,
+                reliability,
+                cla_address,
+                reaches_eid,
+                contacts,
+            } => {
                 // Command
-                let mut result = format!("2({0})", conf.eid);
+                let mut result = format!("2({0})", eid);
 
                 // Reliability
-                result = match conf.reliability {
+                result = match reliability {
                     Some(r) => result + &format!(",{}", r),
                     None => result,
                 };
 
                 // CLA
-                result = match &conf.cla_address {
+                result = match &cla_address {
                     Some(cla) => result + &format!(":({})", cla),
-                    None => result + ":"
+                    None => result + ":",
                 };
 
-                result = if conf.reaches_eid.len() > 0 {
-                    let reaches: Vec<String> = conf
-                        .reaches_eid
-                        .iter()
-                        .map(|it| format!("({})", it))
-                        .collect();
+                result = if reaches_eid.len() > 0 {
+                    let reaches: Vec<String> =
+                        reaches_eid.iter().map(|it| format!("({})", it)).collect();
 
                     result + ":" + &format!("[{0}]", reaches.join(","))
                 } else {
                     result + ":"
                 };
 
-                result = if conf.contacts.len() > 0 {
-                    let contacts: Vec<String> = conf
-                        .contacts
+                result = if contacts.len() > 0 {
+                    let contacts: Vec<String> = contacts
                         .iter()
                         .map(|it| {
                             let reaches: Vec<String> = it
@@ -160,48 +200,6 @@ impl ConfigBundle {
     }
 }
 
-/// Create a contact (to be used in [`ConfigBundle`])
-#[derive(Debug, Clone)]
-pub struct AddContact {
-    /// EID of the other node in contact
-    pub eid: String,
-
-    /// An integer number between 100 and 1000 and represent the expected likelihood that a future contact with the given node will be observed, divided by 10000
-    pub reliability: Option<i32>,
-
-    /// CLA address used in this contact
-    /// Uses the same string representation as ud3tn and consists of the convergence layer adapter and the node address
-    /// e.g., `(tcpclv3:127.0.0.1:1234)`
-    pub cla_address: String,
-
-    /// Reachable EID through this contact
-    pub reaches_eid: Vec<String>,
-
-    /// Future contact of this node
-    pub contacts: Vec<Contact>,
-}
-
-/// Replace a contact (to be used in [`ConfigBundle`])
-#[derive(Debug, Clone)]
-pub struct ReplaceContact {
-    /// EID of the other node in contact
-    pub eid: String,
-
-    /// An integer number between 100 and 1000 and represent the expected likelihood that a future contact with the given node will be observed, divided by 10000
-    pub reliability: Option<i32>,
-
-    /// CLA address used in this contact
-    /// Uses the same string representation as ud3tn and consists of the convergence layer adapter and the node address
-    /// e.g., `(tcpclv3:127.0.0.1:1234)`
-    pub cla_address: Option<String>,
-
-    /// Reachable EID through this contact
-    pub reaches_eid: Vec<String>,
-
-    /// Future contact of this node
-    pub contacts: Vec<Contact>,
-}
-
 /// Describes when a contact is available
 #[derive(Debug, Clone)]
 pub struct Contact {
@@ -239,7 +237,7 @@ mod tests {
 
     #[test]
     fn serialize_add() {
-        let config_1 = ConfigBundle::AddContact(AddContact {
+        let config_1 = ConfigBundle::AddContact{
             eid: "dtn://ud3tn2.dtn/".into(),
             reliability: None,
             cla_address: "mtcp:127.0.0.1:4223".into(),
@@ -258,17 +256,17 @@ mod tests {
                     reaches_eid: vec!["dtn://89326/".into(), "dtn://12349/".into()],
                 },
             ],
-        });
+        };
 
         assert_eq!(config_1.to_string(), "1(dtn://ud3tn2.dtn/):(mtcp:127.0.0.1:4223)::[{1401519306972,1401519316972,1200,[(dtn://89326/),(dtn://12349/)]},{1401519506972,1401519516972,1200,[(dtn://89326/),(dtn://12349/)]}];");
 
-        let config_2 = ConfigBundle::AddContact(AddContact {
+        let config_2 = ConfigBundle::AddContact{
             eid: "dtn://13714/".into(),
             reliability: Some(333),
             cla_address: "tcpspp:".into(),
             reaches_eid: vec!["dtn://18471/".into(), "dtn://81491/".into()],
             contacts: Vec::new(),
-        });
+        };
 
         assert_eq!(
             config_2.to_string(),
@@ -278,13 +276,13 @@ mod tests {
 
     #[test]
     fn serialize_replace() {
-        let config_1 = ConfigBundle::ReplaceContact(ReplaceContact {
+        let config_1 = ConfigBundle::ReplaceContact{
             eid: "dtn://ud3tn2.dtn/".into(),
             reliability: None,
             cla_address: Some("mtcp:127.0.0.1:4223".into()),
             reaches_eid: vec!["dtn://89326/".into(), "dtn://12349/".into()],
             contacts: Vec::new(),
-        });
+        };
 
         assert_eq!(
             config_1.to_string(),
