@@ -260,7 +260,7 @@ mod tests {
             "1(dtn://13714/),333:(tcpspp:):[(dtn://18471/),(dtn://81491/)];"
         );
 
-        let config_3 = ConfigBundle::AddContact(AddContact {
+        let config_3 = ConfigBundle::AddContact{
             eid: "dtn://example.org/".into(),
             reliability: None,
             cla_address: "file:/home/epickiwi/Documents/Dev/archipel-core/data".into(),
@@ -272,7 +272,7 @@ mod tests {
                     data_rate: ContactDataRate::Unlimited
                 }
             ],
-        });
+        };
 
         assert_eq!(config_3.to_string(), "1(dtn://example.org/):(file:/home/epickiwi/Documents/Dev/archipel-core/data)::[{742769943,742770003,4294967200}];");
 
