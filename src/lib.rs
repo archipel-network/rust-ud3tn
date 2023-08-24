@@ -1,7 +1,7 @@
 #![doc = include_str!("../README.md")]
 #![warn(missing_docs)]
 
-use std::io::{Read, Write, BufRead, BufReader};
+use std::{io::{Read, Write, BufRead, BufReader}, os::unix::net::UnixStream, net::TcpStream};
 
 use config::ConfigBundle;
 use message::{Message, ParseError};
@@ -14,6 +14,7 @@ pub mod config;
 /// 
 /// Represents an AAP on a ud3tn node. An AAP expose en endpoint under node's current EID and a defined `agent_id`.
 /// 
+/// # Examples
 /// 
 /// Using a socket file with [`std::os::unix::net::UnixStream`] to expose en endpoint on `dtn://[your-node-eid]/my-agent`
 /// ```rust,no_run
@@ -49,6 +50,13 @@ pub struct Agent<S: Read + Write> {
     /// EID of currently connected node
     pub node_eid: String
 }
+
+/// Shortcut for an agent using Unix Stream
+#[cfg(unix)]
+pub type UnixAgent = Agent<UnixStream>;
+
+/// Shortcut for an agent using Tcp Stream
+pub type TCPAgent = Agent<TcpStream>;
 
 impl<S: Read + Write> Agent<S> {
 
