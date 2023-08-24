@@ -1,6 +1,12 @@
 //! Bundle used for ud3tn contact configuration
 
-use std::time::SystemTime;
+use std::time::{SystemTime, Duration};
+
+/// Return a ud3tn timestamp based on custom offset 1st of january 2000
+/// See [ud3tn_utils/config.py line 15](https://gitlab.com/d3tn/ud3tn/-/blob/master/python-ud3tn-utils/ud3tn_utils/config.py#L15)
+fn dtn_timestamp(time:SystemTime) -> u64{
+    time.duration_since(SystemTime::UNIX_EPOCH + Duration::from_secs(946684800)).unwrap().as_secs()
+}
 
 /// ud3tn config bundle
 #[derive(Debug, Clone)]
@@ -85,27 +91,14 @@ impl ConfigBundle {
                     let contacts: Vec<String> = contacts
                         .iter()
                         .map(|it| {
-                            let reaches: Vec<String> = it
-                                .reaches_eid
-                                .iter()
-                                .map(|it| format!("({})", it))
-                                .collect();
-
                             format!(
-                                "{{{},{},{},[{}]}}",
-                                it.start
-                                    .duration_since(SystemTime::UNIX_EPOCH)
-                                    .unwrap()
-                                    .as_secs(),
-                                it.end
-                                    .duration_since(SystemTime::UNIX_EPOCH)
-                                    .unwrap()
-                                    .as_secs(),
+                                "{{{},{},{}}}",
+                                dtn_timestamp(it.start),
+                                dtn_timestamp(it.end),
                                 match it.data_rate {
                                     ContactDataRate::Limited(i) => format!("{}", i),
                                     ContactDataRate::Unlimited => format!("{}", 4_294_967_200_i64),
-                                },
-                                reaches.join(",")
+                                }
                             )
                         })
                         .collect();
@@ -116,7 +109,7 @@ impl ConfigBundle {
                 };
 
                 // EOL
-                result + ";"
+                result
             }
             ConfigBundle::ReplaceContact {
                 eid,
@@ -153,27 +146,14 @@ impl ConfigBundle {
                     let contacts: Vec<String> = contacts
                         .iter()
                         .map(|it| {
-                            let reaches: Vec<String> = it
-                                .reaches_eid
-                                .iter()
-                                .map(|it| format!("({})", it))
-                                .collect();
-
                             format!(
-                                "{{{},{},{},[{}]}}",
-                                it.start
-                                    .duration_since(SystemTime::UNIX_EPOCH)
-                                    .unwrap()
-                                    .as_secs(),
-                                it.end
-                                    .duration_since(SystemTime::UNIX_EPOCH)
-                                    .unwrap()
-                                    .as_secs(),
+                                "{{{},{},{}}}",
+                                dtn_timestamp(it.start),
+                                dtn_timestamp(it.end),
                                 match it.data_rate {
                                     ContactDataRate::Limited(i) => format!("{}", i),
                                     ContactDataRate::Unlimited => format!("{}", 4_294_967_200_i64),
-                                },
-                                reaches.join(",")
+                                }
                             )
                         })
                         .collect();
@@ -184,14 +164,14 @@ impl ConfigBundle {
                 };
 
                 // EOL
-                result + ";"
+                result
             }
             ConfigBundle::DeleteContact(eid) => {
-                format!("3({0});", eid)
+                format!("3({0})", eid)
             }
         };
 
-        result
+        result + ";"
     }
 
     /// Serialize this config bundle as bytes
@@ -210,10 +190,19 @@ pub struct Contact {
     pub end: SystemTime,
 
     /// Expected transmission rate
-    pub data_rate: ContactDataRate,
+    pub data_rate: ContactDataRate
+}
 
-    /// Reachable EID through this contact
-    pub reaches_eid: Vec<String>,
+impl Contact {
+    /// Create a new contact starting from a point in time and lasting a defined time
+    pub fn from_during(from: SystemTime, duration: Duration, rate: ContactDataRate) -> Self {
+        Self { start: from, end: from + duration, data_rate: rate }
+    }
+
+    /// Create a new contact starting from now lasting a defined time
+    pub fn from_now_during(duration: Duration, rate: ContactDataRate) -> Self {
+        Self { start: SystemTime::now(), end: SystemTime::now() + duration, data_rate: rate }
+    }
 }
 
 /// Contact expected transmission rate
@@ -244,21 +233,19 @@ mod tests {
             reaches_eid: Vec::new(),
             contacts: vec![
                 Contact {
-                    start: ts(1401519306972),
-                    end: ts(1401519316972),
-                    data_rate: ContactDataRate::Limited(1200),
-                    reaches_eid: vec!["dtn://89326/".into(), "dtn://12349/".into()],
+                    start: ts(1689456940),
+                    end: ts(1689456940+60),
+                    data_rate: ContactDataRate::Limited(1200)
                 },
                 Contact {
-                    start: ts(1401519506972),
-                    end: ts(1401519516972),
-                    data_rate: ContactDataRate::Limited(1200),
-                    reaches_eid: vec!["dtn://89326/".into(), "dtn://12349/".into()],
+                    start: ts(1689456940+120),
+                    end: ts(1689456940+180),
+                    data_rate: ContactDataRate::Limited(1200)
                 },
             ],
         };
 
-        assert_eq!(config_1.to_string(), "1(dtn://ud3tn2.dtn/):(mtcp:127.0.0.1:4223)::[{1401519306972,1401519316972,1200,[(dtn://89326/),(dtn://12349/)]},{1401519506972,1401519516972,1200,[(dtn://89326/),(dtn://12349/)]}];");
+        assert_eq!(config_1.to_string(), "1(dtn://ud3tn2.dtn/):(mtcp:127.0.0.1:4223)::[{742772140,742772200,1200},{742772260,742772320,1200}];");
 
         let config_2 = ConfigBundle::AddContact{
             eid: "dtn://13714/".into(),
@@ -272,6 +259,24 @@ mod tests {
             config_2.to_string(),
             "1(dtn://13714/),333:(tcpspp:):[(dtn://18471/),(dtn://81491/)];"
         );
+
+        let config_3 = ConfigBundle::AddContact(AddContact {
+            eid: "dtn://example.org/".into(),
+            reliability: None,
+            cla_address: "file:/home/epickiwi/Documents/Dev/archipel-core/data".into(),
+            reaches_eid: Vec::new(),
+            contacts: vec![
+                Contact { 
+                    start: ts(1689454743), 
+                    end: ts(1689454803), 
+                    data_rate: ContactDataRate::Unlimited
+                }
+            ],
+        });
+
+        assert_eq!(config_3.to_string(), "1(dtn://example.org/):(file:/home/epickiwi/Documents/Dev/archipel-core/data)::[{742769943,742770003,4294967200}];");
+
+        assert_eq!(config_3.to_bytes(), vec![49, 40, 100, 116, 110, 58, 47, 47, 101, 120, 97, 109, 112, 108, 101, 46, 111, 114, 103, 47, 41, 58, 40, 102, 105, 108, 101, 58, 47, 104, 111, 109, 101, 47, 101, 112, 105, 99, 107, 105, 119, 105, 47, 68, 111, 99, 117, 109, 101, 110, 116, 115, 47, 68, 101, 118, 47, 97, 114, 99, 104, 105, 112, 101, 108, 45, 99, 111, 114, 101, 47, 100, 97, 116, 97, 41, 58, 58, 91, 123, 55, 52, 50, 55, 54, 57, 57, 52, 51, 44, 55, 52, 50, 55, 55, 48, 48, 48, 51, 44, 52, 50, 57, 52, 57, 54, 55, 50, 48, 48, 125, 93, 59])
     }
 
     #[test]
