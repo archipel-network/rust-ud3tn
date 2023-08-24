@@ -1,4 +1,4 @@
-# `ud3tn_aap`
+# `ud3tn-aap`
 
 > Rust AAP development for [ud3tn](https://gitlab.com/d3tn/ud3tn) 
 
