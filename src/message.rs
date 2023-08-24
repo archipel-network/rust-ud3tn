@@ -4,7 +4,7 @@ use std::{borrow::Cow, array::TryFromSliceError, string::FromUtf8Error};
 use thiserror::Error;
 
 /// An ud3tn message received or sent to node
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 #[non_exhaustive]
 pub enum Message<'a> {
     /// Cositive acknowledgment
@@ -216,7 +216,7 @@ impl<'a> TryFrom<Vec<u8>> for Message<'a> {
 }
 
 /// Parsing error of message
-#[derive(Debug, Error)]
+#[derive(Debug, Error, Clone)]
 pub enum ParseError {
     /// Parsed message protocol version isn't supported (or provided message is not a valid ud3tn message)
     #[error("Version byte not supported")]

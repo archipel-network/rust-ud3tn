@@ -3,6 +3,7 @@
 use std::time::SystemTime;
 
 /// ud3tn config bundle
+#[derive(Debug, Clone)]
 pub enum ConfigBundle {
     /// Add a new available contact
     AddContact(AddContact),
@@ -160,6 +161,7 @@ impl ConfigBundle {
 }
 
 /// Create a contact (to be used in [`ConfigBundle`])
+#[derive(Debug, Clone)]
 pub struct AddContact {
     /// EID of the other node in contact
     pub eid: String,
@@ -180,6 +182,7 @@ pub struct AddContact {
 }
 
 /// Replace a contact (to be used in [`ConfigBundle`])
+#[derive(Debug, Clone)]
 pub struct ReplaceContact {
     /// EID of the other node in contact
     pub eid: String,
@@ -200,6 +203,7 @@ pub struct ReplaceContact {
 }
 
 /// Describes when a contact is available
+#[derive(Debug, Clone)]
 pub struct Contact {
     /// When this contact will start
     pub start: SystemTime,
@@ -215,6 +219,7 @@ pub struct Contact {
 }
 
 /// Contact expected transmission rate
+#[derive(Debug, Clone)]
 pub enum ContactDataRate {
     /// Unlimited transmission rate
     Unlimited,
