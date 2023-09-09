@@ -1,7 +1,10 @@
 #![doc = include_str!("../README.md")]
 #![warn(missing_docs)]
 
-use std::{io::{Read, Write, BufRead, BufReader}, os::unix::net::UnixStream, net::TcpStream};
+use std::{io::{Read, Write, BufRead, BufReader}, fmt::Debug, net::TcpStream };
+
+#[cfg(unix)]
+use std::os::unix::net::UnixStream;
 
 use config::ConfigBundle;
 use message::{Message, ParseError};
@@ -40,9 +43,9 @@ pub mod config;
 /// println!("Connected to {0} as {0}{1}", connection.node_eid, connection.agent_id)
 /// ```
 #[derive(Debug)]
-pub struct Agent<S: Read + Write> {
+pub struct Agent<'a> {
     /// Stream used for communication with ud3tn
-    pub stream: BufReader<S>,
+    pub stream: BufReader<Box<dyn Ud3tnStream + 'a>>,
 
     /// Current registered Agent ID
     pub agent_id: String,
@@ -51,21 +54,27 @@ pub struct Agent<S: Read + Write> {
     pub node_eid: String
 }
 
-/// Shortcut for an agent using Unix Stream
+/// Any stream that can be used to communicate with archipel core
+pub trait Ud3tnStream: Read + Write + Send + Debug {}
+
+impl Ud3tnStream for TcpStream {}
+
 #[cfg(unix)]
-pub type UnixAgent = Agent<UnixStream>;
+impl Ud3tnStream for UnixStream {}
 
-/// Shortcut for an agent using Tcp Stream
-pub type TCPAgent = Agent<TcpStream>;
-
-impl<S: Read + Write> Agent<S> {
+impl<'a> Agent<'a> {
 
     /// Connect to ud3tn with provided stream using the the given `agent_id`. Blocks until a sucessful connection or Error.
     /// 
     /// Will establish a communication with ud3tn, wait for WELCOME message and will register agent ID
     /// This operation is blocking until the connection is available and working
-    pub fn connect(stream: S, agent_id: String) -> Result<Self, Error> {
-        let mut stream = BufReader::new(stream);
+    pub fn connect(
+        stream: impl Ud3tnStream + 'a,
+        agent_id: String
+    ) -> Result<Self, Error> {
+        
+        let mut stream: BufReader<Box<dyn Ud3tnStream + 'a>> = 
+            BufReader::new(Box::new(stream));
 
         match Self::recv_from(&mut stream)? {
             Message::Welcome(node_eid) => {
@@ -100,7 +109,7 @@ impl<S: Read + Write> Agent<S> {
     }
 
     /// Send an AAP message to a stream and wait of a [`Message::ACK`] answer
-    fn send_message_to(stream:&mut BufReader<S>, message: Message) -> Result<(), Error> {
+    fn send_message_to<'l>(stream:&mut BufReader<Box<dyn Ud3tnStream + 'l>>, message: Message) -> Result<(), Error> {
         Self::send_message_unchecked_to(stream.get_mut(), message)?;
         match Self::recv_from(stream)? {
             Message::Ack => Ok(()),
@@ -116,7 +125,7 @@ impl<S: Read + Write> Agent<S> {
     }
 
     /// Blocks until an AAP message is received from a stream
-    fn recv_from<'a>(stream: &mut BufReader<S>) -> Result<Message<'a>, Error> {
+    fn recv_from<'l>(stream: &mut BufReader<Box<dyn Ud3tnStream + 'l>>) -> Result<Message<'l>, Error> {
         loop {
             stream.fill_buf()?;
             let buffer = stream.buffer();

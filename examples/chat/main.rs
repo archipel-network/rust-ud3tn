@@ -8,12 +8,12 @@ fn main(){
     // Establish connection to ud3tn
 
     let mut output_connection = Agent::connect(
-        UnixStream::connect("/home/epickiwi/Documents/Dev/archipel-core/ud3tn.socket").expect("Connection failed"),
+        UnixStream::connect("/run/archipel-core/archipel-core.socket").expect("Connection failed"),
         "chat/out".into()
     ).expect("Can't create output aap");
 
     let mut input_connection = Agent::connect(
-        UnixStream::connect("/home/epickiwi/Documents/Dev/archipel-core/ud3tn.socket").expect("Connection failed"),
+        UnixStream::connect("/run/archipel-core/archipel-core.socket").expect("Connection failed"),
         "chat/in".into()
     ).expect("Can't create input aap");
     
