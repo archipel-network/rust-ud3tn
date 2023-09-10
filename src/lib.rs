@@ -55,7 +55,7 @@ pub struct Agent<'a> {
 }
 
 /// Any stream that can be used to communicate with archipel core
-pub trait Ud3tnStream: Read + Write + Send + Debug {}
+pub trait Ud3tnStream: Read + Write + Send + Sync + Debug {}
 
 impl Ud3tnStream for TcpStream {}
 
