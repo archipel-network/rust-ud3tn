@@ -67,7 +67,7 @@ impl<S: Read + Write> Agent<S> {
     pub fn connect(stream: S, agent_id: String) -> Result<Self, Error> {
         let mut stream = BufReader::new(stream);
 
-        match Self::recv_from(&mut stream)? {
+        match Self::recv_from(&mut stream, true)? {
             Message::Welcome(node_eid) => {
                 Self::send_message_to(&mut stream, Message::Register(agent_id.clone()))?;
                 Ok(Self { stream, agent_id, node_eid })
@@ -83,7 +83,7 @@ impl<S: Read + Write> Agent<S> {
     /// Returns bundle identifier as [`u64`]
     pub fn send_bundle(&mut self, destination_eid: String, payload:&[u8]) -> Result<u64, Error>{
         Self::send_message_unchecked_to(self.stream.get_mut(), Message::SendBundle(destination_eid, payload.into()))?;
-        match Self::recv_from(&mut self.stream)? {
+        match Self::recv_from(&mut self.stream, true)? {
             Message::SendConfirm(id) => Ok(id),
             _ => Err(Error::UnexpectedMessage)
         }
@@ -93,7 +93,18 @@ impl<S: Read + Write> Agent<S> {
     /// 
     /// If something other than a bundle is received [`Err(Error::UnexpectedMessage)`] is returned
     pub fn recv_bundle(&mut self) -> Result<(String, Vec<u8>), Error>{
-        match Self::recv_from(&mut self.stream)? {
+        match Self::recv_from(&mut self.stream, true)? {
+            Message::RecvBundle(source, payload) => Ok((source, payload.into())),
+            _ => Err(Error::UnexpectedMessage)
+        }
+    }
+
+    /// Try to receive a bundle from ud3tn node adressed to this agent
+    /// 
+    /// If something other than a bundle is received [`Err(Error::UnexpectedMessage)`] is returned
+    /// If no bundle is pending, return [`Err(Error:NoMessage)`]
+    pub fn try_recv_bundle(&mut self) -> Result<(String, Vec<u8>), Error>{
+        match Self::recv_from(&mut self.stream, false)? {
             Message::RecvBundle(source, payload) => Ok((source, payload.into())),
             _ => Err(Error::UnexpectedMessage)
         }
@@ -102,7 +113,7 @@ impl<S: Read + Write> Agent<S> {
     /// Send an AAP message to a stream and wait of a [`Message::ACK`] answer
     fn send_message_to(stream:&mut BufReader<S>, message: Message) -> Result<(), Error> {
         Self::send_message_unchecked_to(stream.get_mut(), message)?;
-        match Self::recv_from(stream)? {
+        match Self::recv_from(stream, true)? {
             Message::Ack => Ok(()),
             Message::Nack => Err(Error::FailedOperation),
             _ => Err(Error::UnexpectedMessage)
@@ -116,7 +127,7 @@ impl<S: Read + Write> Agent<S> {
     }
 
     /// Blocks until an AAP message is received from a stream
-    fn recv_from<'a>(stream: &mut BufReader<S>) -> Result<Message<'a>, Error> {
+    fn recv_from<'a>(stream: &mut BufReader<S>, block: bool) -> Result<Message<'a>, Error> {
         loop {
             stream.fill_buf()?;
             let buffer = stream.buffer();
@@ -140,6 +151,8 @@ impl<S: Read + Write> Agent<S> {
                         _ => {}
                     },
                 }
+            } else if ! block {
+                return Err(Error::NoMessage)
             }
         }
     }
@@ -173,5 +186,9 @@ pub enum Error {
 
     /// An error occured during message parsing
     #[error("Malformed message")]
-    MalformedMessage(#[from] ParseError)
+    MalformedMessage(#[from] ParseError),
+
+    /// Nothing to receive
+    #[error("Nothing to receive")]
+    NoMessage
 }
