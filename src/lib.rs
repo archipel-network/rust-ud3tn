@@ -111,7 +111,7 @@ impl<S: Read + Write> Agent<S> {
 
     /// Send an AAP message to a stream
     fn send_message_unchecked_to<T: Write>(stream:&mut T, message: Message) -> Result<(), Error> {
-        stream.write(&message.to_bytes())?;
+        stream.write_all(&message.to_bytes())?;
         Ok(())
     }
 
