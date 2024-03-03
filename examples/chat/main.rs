@@ -1,4 +1,4 @@
-use std::{os::unix::net::UnixStream, thread, io::{stdin, stdout, Write}};
+use std::{thread, io::{stdin, stdout, Write}, path::PathBuf};
 
 use inquire::Text;
 use ud3tn_aap::Agent;
@@ -7,13 +7,13 @@ fn main(){
 
     // Establish connection to ud3tn
 
-    let mut output_connection = Agent::connect(
-        UnixStream::connect("/home/epickiwi/Documents/Dev/archipel-core/ud3tn.socket").expect("Connection failed"),
+    let mut output_connection = Agent::connect_unix(
+        &PathBuf::from("/run/user/1000/archipel-core/archipel-core.socket"),
         "chat/out".into()
     ).expect("Can't create output aap");
 
-    let mut input_connection = Agent::connect(
-        UnixStream::connect("/home/epickiwi/Documents/Dev/archipel-core/ud3tn.socket").expect("Connection failed"),
+    let mut input_connection = Agent::connect_unix(
+        &PathBuf::from("/run/user/1000/archipel-core/archipel-core.socket"),
         "chat/in".into()
     ).expect("Can't create input aap");
     
@@ -23,13 +23,13 @@ fn main(){
     let dest = Text::new("Destination EID")
                     .with_formatter(&|val| format!("dtn://{}/", val))
                     .prompt().unwrap();
-    println!("");
+    println!();
 
     println!("Welcome {} !", username);
-    println!("");
+    println!();
     println!("Your EID {}", output_connection.node_eid);
     println!("Sending to EID dtn://{}/", dest);
-    println!("");
+    println!();
 
     let destination_eid = format!("dtn://{}/chat/in", dest);
 

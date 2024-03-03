@@ -1,10 +1,10 @@
-use std::{os::unix::net::UnixStream, time::Duration};
+use std::{time::Duration, path::PathBuf};
 
 use ud3tn_aap::{Agent, config::{ConfigBundle, Contact, ContactDataRate}};
 
 fn main(){
-    let mut connection = Agent::connect(
-        UnixStream::connect("/run/archipel-core/archipel-core.socket").unwrap(),
+    let mut connection = Agent::connect_unix(
+        &PathBuf::from("/run/archipel-core/archipel-core.socket"),
         "contact-agent".into()
     ).unwrap();
     

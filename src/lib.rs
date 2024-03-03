@@ -1,7 +1,8 @@
 #![doc = include_str!("../README.md")]
 #![warn(missing_docs)]
 
-use std::{io::{Read, Write, BufRead, BufReader}, os::unix::net::UnixStream, net::TcpStream};
+use std::{io::{Read, Write, BufReader, BufRead}, os::unix::net::UnixStream, fmt::Debug, thread, time::Duration};
+use std::path::Path;
 
 use config::ConfigBundle;
 use message::{Message, ParseError};
@@ -9,6 +10,13 @@ use thiserror::Error;
 
 pub mod message;
 pub mod config;
+
+/// Any stream matching requirements to be used as an ud3tn aap source
+/// 
+/// You shouldn't use it directly. Use [Agent::connect_unix] to connect to a unix stream.
+pub trait Ud3tnAapStream: Read + Write + Debug + Send {}
+
+impl<T: Read + Write + Debug + Send> Ud3tnAapStream for T {}
 
 /// Agent creating an AAP on a ud3tn node through a stream
 /// 
@@ -40,9 +48,9 @@ pub mod config;
 /// println!("Connected to {0} as {0}{1}", connection.node_eid, connection.agent_id)
 /// ```
 #[derive(Debug)]
-pub struct Agent<S: Read + Write> {
+pub struct Agent {
     /// Stream used for communication with ud3tn
-    pub stream: BufReader<S>,
+    pub stream: BufReader<Box<dyn Ud3tnAapStream>>,
 
     /// Current registered Agent ID
     pub agent_id: String,
@@ -51,29 +59,48 @@ pub struct Agent<S: Read + Write> {
     pub node_eid: String
 }
 
-/// Shortcut for an agent using Unix Stream
-#[cfg(unix)]
-pub type UnixAgent = Agent<UnixStream>;
+impl Agent {
 
-/// Shortcut for an agent using Tcp Stream
-pub type TCPAgent = Agent<TcpStream>;
+    /// Connect to ud3tn using a unix socket and an `agent_id`.
+    /// Blocks until a sucessful connection or Error.
+    /// 
+    /// Will establish a communication with ud3tn, wait for WELCOME message and will register agent ID
+    /// This operation is blocking until the connection is available and working
+    #[cfg(unix)]
+    pub fn connect_unix(unix_sock_path: &Path, agent_id: String) -> Result<Self, Error> {
+        let stream = UnixStream::connect(unix_sock_path)?;
+        stream.set_nonblocking(true)?;
+        Self::connect_stream(Box::new(stream), agent_id)
+    }
 
-impl<S: Read + Write> Agent<S> {
+    // TODO TCP Connect
 
     /// Connect to ud3tn with provided stream using the the given `agent_id`. Blocks until a sucessful connection or Error.
     /// 
     /// Will establish a communication with ud3tn, wait for WELCOME message and will register agent ID
     /// This operation is blocking until the connection is available and working
-    pub fn connect(stream: S, agent_id: String) -> Result<Self, Error> {
+    pub fn connect_stream(
+        stream: Box<dyn Ud3tnAapStream>,
+        agent_id: String
+    ) -> Result<Self, Error> {
+
         let mut stream = BufReader::new(stream);
 
         match Self::recv_from(&mut stream, true)? {
             Message::Welcome(node_eid) => {
-                Self::send_message_to(&mut stream, Message::Register(agent_id.clone()))?;
-                Ok(Self { stream, agent_id, node_eid })
+                Self::send_message_to(
+                    &mut stream,
+                    Message::Register(agent_id.clone())
+                )?;
+                Ok(Self {
+                    stream,
+                    agent_id,
+                    node_eid
+                })
             },
             _ => Err(Error::UnexpectedMessage)
         }
+
     }
 
     /// Send a bundle to ud3tn node to route it
@@ -82,7 +109,7 @@ impl<S: Read + Write> Agent<S> {
     /// 
     /// Returns bundle identifier as [`u64`]
     pub fn send_bundle(&mut self, destination_eid: String, payload:&[u8]) -> Result<u64, Error>{
-        Self::send_message_unchecked_to(self.stream.get_mut(), Message::SendBundle(destination_eid, payload.into()))?;
+        Self::send_message_unchecked_to(&mut self.stream.get_mut(), Message::SendBundle(destination_eid, payload.into()))?;
         match Self::recv_from(&mut self.stream, true)? {
             Message::SendConfirm(id) => Ok(id),
             _ => Err(Error::UnexpectedMessage)
@@ -111,7 +138,7 @@ impl<S: Read + Write> Agent<S> {
     }
 
     /// Send an AAP message to a stream and wait of a [`Message::ACK`] answer
-    fn send_message_to(stream:&mut BufReader<S>, message: Message) -> Result<(), Error> {
+    fn send_message_to<S: Ud3tnAapStream>(stream: &mut BufReader<S>, message: Message) -> Result<(), Error> {
         Self::send_message_unchecked_to(stream.get_mut(), message)?;
         match Self::recv_from(stream, true)? {
             Message::Ack => Ok(()),
@@ -121,16 +148,39 @@ impl<S: Read + Write> Agent<S> {
     }
 
     /// Send an AAP message to a stream
-    fn send_message_unchecked_to<T: Write>(stream:&mut T, message: Message) -> Result<(), Error> {
+    fn send_message_unchecked_to<T: Write>(stream: &mut T, message: Message) -> Result<(), Error> {
         stream.write_all(&message.to_bytes())?;
         Ok(())
     }
 
     /// Blocks until an AAP message is received from a stream
-    fn recv_from<'a>(stream: &mut BufReader<S>, block: bool) -> Result<Message<'a>, Error> {
+    fn recv_from<'b, S: BufRead>(
+        stream: &mut S,
+        block: bool
+    ) -> Result<Message<'b>, Error> {
         loop {
-            stream.fill_buf()?;
-            let buffer = stream.buffer();
+
+            let buffer = {
+                let mut result = None;
+                while result.is_none() {
+                    result  = match stream.fill_buf() {
+                        Ok(b) => Ok(Some(b)),
+                        Err(e) => match e.kind() {
+                            std::io::ErrorKind::WouldBlock => {
+                                if block {
+                                    thread::sleep(Duration::from_millis(100));
+                                    Ok(None)
+                                } else {
+                                    Err(Error::NoMessage)
+                                }
+                            },
+                            _ => Err(Error::IOError(e))
+                        },
+                    }?;
+                }
+                result.unwrap()
+            };
+
             let bytes_in_buffer = buffer.len();
 
             if bytes_in_buffer > 0 {
@@ -151,8 +201,6 @@ impl<S: Read + Write> Agent<S> {
                         _ => {}
                     },
                 }
-            } else if ! block {
-                return Err(Error::NoMessage)
             }
         }
     }
