@@ -1,21 +1,21 @@
-use std::{thread, io::{stdin, stdout, Write}, path::PathBuf};
+use std::{io::{stdin, stdout, Write}, path::{Path, PathBuf}, thread};
 
 use inquire::Text;
-use ud3tn_aap::Agent;
+use ud3tn_aap::{Agent, BaseAgent};
 
 fn main(){
 
     // Establish connection to ud3tn
 
-    let mut output_connection = Agent::connect_unix(
-        &PathBuf::from("/run/user/1000/archipel-core/archipel-core.socket"),
-        "chat/out".into()
-    ).expect("Can't create output aap");
+    let mut output_agent = Agent::connect_unix(
+        &Path::new("/run/archipel-core/archipel-core.socket")
+    ).expect("Can't create output aap")
+        .register("chat/out".to_owned()).expect("Failed to register output agent");
 
-    let mut input_connection = Agent::connect_unix(
-        &PathBuf::from("/run/user/1000/archipel-core/archipel-core.socket"),
-        "chat/in".into()
-    ).expect("Can't create input aap");
+    let mut input_agent = Agent::connect_unix(
+        &PathBuf::from("/run/archipel-core/archipel-core.socket")
+    ).expect("Can't create input aap")
+        .register("chat/in".to_owned()).expect("Failed to register input agent");
     
     // Request user info
 
@@ -27,7 +27,7 @@ fn main(){
 
     println!("Welcome {} !", username);
     println!();
-    println!("Your EID {}", output_connection.node_eid);
+    println!("Your EID {}", output_agent.node_id());
     println!("Sending to EID dtn://{}/", dest);
     println!();
 
@@ -38,9 +38,9 @@ fn main(){
     let fallback_username = username.clone();
     thread::spawn(move || {
         loop {
-            let (_, payload) = input_connection.recv_bundle()
+            let bundle = input_agent.recv_bundle()
                 .expect("Error receiving messages");
-            let mess = String::from_utf8(payload).expect("Invalid utf8 message");
+            let mess = String::from_utf8(bundle.payload).expect("Invalid utf8 message");
             println!("\r{: <50}", mess);
             print!("<{}> ", fallback_username);
             stdout().flush().unwrap();
@@ -54,7 +54,7 @@ fn main(){
         stdin().read_line(&mut mess).unwrap();
         mess = mess[0..mess.len()-1].to_string();
 
-        output_connection.send_bundle(
+        output_agent.send_bundle(
             destination_eid.clone(), format!("<{}> {}", username, mess).as_bytes()
         ).expect("Unable to send message");
     }

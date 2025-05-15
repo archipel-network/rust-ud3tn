@@ -1,11 +1,14 @@
-use std::path::PathBuf;
-
-use ud3tn_aap::Agent;
+use std::path::Path;
+use ud3tn_aap::{Agent, BaseAgent};
 
 fn main(){
-    let connection = Agent::connect_unix(
-        &PathBuf::from("/home/epickiwi/Documents/Dev/archipel-core/ud3tn.socket"),
-        "my-agent".into()
-    ).unwrap();
-    println!("Connected to {0} as {0}{1}", connection.node_eid, connection.agent_id)
+    let mut agent = Agent::connect_unix(Path::new("/run/archipel-core/archipel-core.socket"))
+        .expect("Failed to connect to DTN node");
+
+    agent.ping().expect("Failed to ping");
+
+    let agent = agent.register("my-agent".to_owned())
+        .expect("Failed to register");
+
+    println!("Connected to {0} as {0}{1}", agent.node_id(), agent.agent_id())
 }

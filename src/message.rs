@@ -1,6 +1,6 @@
 //! Message parsing and serializing from ud3tn
 
-use std::{borrow::Cow, array::TryFromSliceError, string::FromUtf8Error};
+use std::{array::TryFromSliceError, borrow::Cow, string::FromUtf8Error, time::{Duration, SystemTime}};
 use thiserror::Error;
 
 /// An ud3tn message received or sent to node
@@ -30,10 +30,10 @@ pub enum Message<'a> {
     RecvBundle(String, Cow<'a, [u8]>),
 
     /// Bundle transmission confirmation
-    SendConfirm(u64),
+    SendConfirm(BundleIdentifier),
 
     /// Bundle cancellation request
-    CancelBundle(u64),
+    CancelBundle(BundleIdentifier),
 
     /// Connection liveliness check
     Ping,
@@ -43,6 +43,128 @@ pub enum Message<'a> {
 
     /// Unimplmented - BIBE Bundle reception message
     RecvBIBE(String, Cow<'a, [u8]>),
+}
+
+/// Identifier of a prevously sent bundle
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub struct BundleIdentifier(pub [u8;8]);
+
+impl BundleIdentifier {
+    fn is_v2_format(&self) -> bool {
+        self.0[0] & 0b10000000 == 0b10000000
+    }
+
+    fn contains_creation_time(&self) -> bool {
+        self.is_v2_format() && (self.0[0] & 0b010000000 == 0b010000000)
+    }
+
+    /// Bundle creation time
+    /// 
+    /// [None] if identifier is in older format or not included
+    pub fn creation_time(&self) -> Option<DtnTime> {
+        if !self.contains_creation_time() {
+            return None
+        }
+
+        let time: u64 = u64::from_be_bytes([
+            0,
+            0,
+            self.0[0] & 0b00111111,
+            self.0[1],
+            self.0[2],
+            self.0[3],
+            self.0[4],
+            self.0[5],
+        ]);
+
+        Some(DtnTime(time))
+    }
+
+    /// Bundle sequence number
+    /// 
+    /// [None] if bundle identifier is in older format
+    pub fn sequence_number(&self) -> Option<u64> {
+        if !self.is_v2_format() {
+            return None
+        }
+
+        if self.contains_creation_time() {
+            let seq: u16 = u16::from_be_bytes([
+                    self.0[6],
+                    self.0[7]
+                ]);
+            Some(seq as u64)
+        } else {
+            let seq: u64 = u64::from_be_bytes([
+                    self.0[0] & 0b00111111,
+                    self.0[1],
+                    self.0[2],
+                    self.0[3],
+                    self.0[4],
+                    self.0[5],
+                    self.0[6],
+                    self.0[7]
+                ]);
+            Some(seq)
+        }
+
+    }
+}
+
+impl From<u64> for BundleIdentifier {
+    fn from(value: u64) -> Self {
+        Self::from(value.to_be_bytes())
+    }
+}
+
+impl From<[u8;8]> for BundleIdentifier {
+    fn from(value: [u8;8]) -> Self {
+        BundleIdentifier(value)
+    }
+}
+
+/// A timestamp relative to DTN EPOCH
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct DtnTime(u64);
+
+impl DtnTime {
+    /// Get system time from this DTN Time
+    pub fn as_system_time(&self) -> SystemTime {
+        SystemTime::from(*self)
+    }
+}
+
+#[cfg(feature = "chrono")]
+impl DtnTime {
+    /// Get chrono DateTime from this DTN Time
+    pub fn as_datetime(&self) -> chrono::NaiveDateTime {
+        chrono::NaiveDateTime::from(*self)
+    }
+}
+
+#[cfg(feature = "chrono")]
+impl From<DtnTime> for chrono::NaiveDateTime {
+    fn from(value: DtnTime) -> Self {
+        chrono::DateTime::UNIX_EPOCH.naive_utc() +
+            Duration::from_secs(946681200) // Number of seconds elapsed between UNIX EPOCH (1970-01-01T00:00:00)
+                                           // and DTN EPOCH (2000-01-01T00:00:00)
+            + Duration::from_millis(value.0)
+    }
+}
+
+impl From<u64> for DtnTime {
+    fn from(value: u64) -> Self {
+        Self(value)
+    }
+}
+
+impl From<DtnTime> for SystemTime {
+    fn from(value: DtnTime) -> Self {
+        SystemTime::UNIX_EPOCH +
+            Duration::from_secs(946681200) // Number of seconds elapsed between UNIX EPOCH (1970-01-01T00:00:00)
+                                           // and DTN EPOCH (2000-01-01T00:00:00)
+            + Duration::from_millis(value.0)
+    }
 }
 
 impl<'a> Message<'a> {
@@ -81,9 +203,9 @@ impl<'a> Message<'a> {
                 append_bytes(&mut result, &payload)
             },
             Message::SendConfirm(bundle_id) => 
-                result.append(&mut Vec::from((bundle_id).to_be_bytes())),
+                result.append(&mut Vec::from((bundle_id).0)),
             Message::CancelBundle(bundle_id) =>  
-                result.append(&mut Vec::from((bundle_id).to_be_bytes())),
+                result.append(&mut Vec::from((bundle_id).0)),
             _ => {}
         };
 
@@ -159,16 +281,16 @@ impl<'a> Message<'a> {
                 Message::RecvBundle(source_eid, payload)
             }
             0x5 => {
-                let bundle_id:u64 = u64::from_be_bytes(bytes[offset..offset+8].try_into()?);
+                let bundle_id:[u8;8] = bytes[offset..offset+8].try_into()?;
                 offset += 8;
 
-                Message::SendConfirm(bundle_id)
+                Message::SendConfirm(BundleIdentifier(bundle_id))
             }
             0x6 => {
-                let bundle_id:u64 = u64::from_be_bytes(bytes[offset..offset+8].try_into()?);
+                let bundle_id:[u8;8] = bytes[offset..offset+8].try_into()?;
                 offset += 8;
 
-                Message::CancelBundle(bundle_id)
+                Message::CancelBundle(BundleIdentifier(bundle_id))
             }
             0x7 => {
                 let eid_length:usize = u16::from_be_bytes(bytes[offset..offset+2].try_into()?) as usize;
@@ -241,10 +363,16 @@ impl From<TryFromSliceError> for ParseError {
     }
 }
 
+#[derive(Debug)]
+pub struct ReceivedBundle {
+    pub source: Option<String>,
+    pub payload: Vec<u8>
+}
+
 #[cfg(test)]
 mod tests {
     use std::borrow::Cow;
-    use crate::message::Message;
+    use crate::message::{BundleIdentifier, Message};
 
     #[test]
     fn test_ack_to_bytes(){
@@ -357,7 +485,7 @@ mod tests {
     #[test]
     fn test_sendconfirm_to_bytes(){
         assert_eq!(
-            Message::SendConfirm(735469895).to_bytes(),
+            Message::SendConfirm(BundleIdentifier(735469895_u64.to_be_bytes())).to_bytes(),
             vec![0b00010101, // Declaration
             0, 0, 0, 0, 0b00101011, 0b11010110, 0b01100001, 0b01000111 //Bundle ID
             ])
@@ -367,13 +495,13 @@ mod tests {
     fn test_sendconfirm_parse(){
         assert_eq!(
             Message::parse(&vec![0b00010101, 0, 0, 0, 0, 0b00101011, 0b11010110, 0b01100001, 0b01000111]).unwrap(),
-            Message::SendConfirm(735469895))
+            Message::SendConfirm(BundleIdentifier(735469895_u64.to_be_bytes())))
     }
 
     #[test]
     fn test_bundle_cancelled_to_bytes(){
         assert_eq!(
-            Message::CancelBundle(1720893).to_bytes(),
+            Message::CancelBundle(BundleIdentifier(735469895_u64.to_be_bytes())).to_bytes(),
             vec![0b00010110, // Declaration
             0, 0, 0, 0, 0, 0b00011010, 0b01000010, 0b00111101, //Bundle ID
             ])
@@ -383,7 +511,7 @@ mod tests {
     fn test_bundle_cancelled_parse(){
         assert_eq!(
             Message::parse(&vec![0b00010110, 0, 0, 0, 0, 0, 0b00011010, 0b01000010, 0b00111101]).unwrap(),
-            Message::CancelBundle(1720893))
+            Message::CancelBundle(BundleIdentifier(735469895_u64.to_be_bytes())))
     }
 
     #[test]

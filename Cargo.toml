@@ -1,13 +1,19 @@
 [package]
 name = "ud3tn-aap"
-version = "0.2.2"
+version = "1.0.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 thiserror = "1.0.43"
+chrono = {version = "0.4.41", optional = true}
+
+[features]
+default = ["chrono"]
+chrono = ["dep:chrono"]
 
 [dev-dependencies]
+chrono = {version = "0.4.41"}
 inquire = "0.6.2"
 url = "2.4.0"
