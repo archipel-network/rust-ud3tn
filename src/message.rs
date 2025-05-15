@@ -363,9 +363,12 @@ impl From<TryFromSliceError> for ParseError {
     }
 }
 
+/// A bundle received from node
 #[derive(Debug)]
 pub struct ReceivedBundle {
+    /// Source endpoint ID of this bundle
     pub source: Option<String>,
+    /// Content of this bundle
     pub payload: Vec<u8>
 }
 
