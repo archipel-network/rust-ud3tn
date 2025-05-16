@@ -179,14 +179,6 @@ impl<S: AapStream> RegisteredAgent<S> {
         }
     }
 
-    /// Try to receive a bundle from ud3tn node adressed to this agent
-    /// 
-    /// If something other than a bundle is received [`Err(Error::UnexpectedMessage)`] is returned
-    /// If no bundle is pending, return [`Err(Error:NoMessage)`]
-    pub fn try_recv_bundle(&mut self) -> Result<ReceivedBundle, Error>{
-        todo!()
-    }
-
     /// Send a configuration bundle to ud3tn node
     pub fn send_config(&mut self, config:ConfigBundle) -> Result<(), Error> {
         match self.send_bundle(format!("{0}config", self.inner.node_eid), &config.to_bytes()) {
